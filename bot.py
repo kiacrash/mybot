@@ -5,6 +5,9 @@ ADMIN_ID = 553903664
 waiting_for_admin = set()
 user_map = {}
 
+banned_users = set()
+
+
 import os
 TOKEN = os.getenv("TOKEN")
 
@@ -83,15 +86,30 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = user_map[msg_id]
             await context.bot.send_message(user_id, update.message.text)
 
+async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if update.message.reply_to_message:
+        msg_id = update.message.reply_to_message.message_id
+
+        if msg_id in user_map:
+            user_id = user_map[msg_id]
+            banned_users.add(user_id)
+            await update.message.reply_text("کاربر بن شد و دیگر نمی‌تواند به شما پیام بدهد.")
+
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
+
 
     message = update.message
     text = message.text
     user_id = update.effective_user.id
     chat_type = message.chat.type
+    if user_id in banned_users:
+        return
+
 
     # دکمه ها
     if text == "🏠 شروع":
@@ -125,10 +143,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
-        sent = await context.bot.send_message(
-            ADMIN_ID,
-            f"پیام جدید از کاربر:\n\nID: {user_id}\n\n{text}"
-        )
+        sent = await message.copy(chat_id=ADMIN_ID)
+
 
         user_map[sent.message_id] = user_id
         waiting_for_admin.remove(user_id)
@@ -165,6 +181,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("custom", custom_command))
+    app.add_handler(CommandHandler("ban", ban_user))
+
     app.add_handler(CommandHandler("contact", contact_admin_command))
 
     app.add_handler(MessageHandler(filters.REPLY, admin_reply))
