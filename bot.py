@@ -104,10 +104,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     message = update.message
-    text = message.text
     user_id = update.effective_user.id
     chat_type = message.chat.type
+    text = message.text if message.text else ""
+
     if user_id in banned_users:
+        return
+    
+    # حالت ارتباط با مدیریت
+    if user_id in waiting_for_admin:
+        if text == "لغو":
+            waiting_for_admin.remove(user_id)
+            await message.reply_text("لغو شد.", reply_markup=main_keyboard())
+
+            return
+
+        header = f"پیام جدید از کاربر:\n\nID: {user_id}"
+        await context.bot.send_message(ADMIN_ID, header)
+
+
+        sent = await message.copy(chat_id=ADMIN_ID)
+
+
+        user_map[sent.message_id] = user_id
+        waiting_for_admin.remove(user_id)
+
+        await message.reply_text(
+            "پیام شما برای من ارسال شد.",
+            reply_markup=main_keyboard()
+        )
+
         return
 
 
@@ -135,26 +161,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
      return
 
 
-    # حالت ارتباط با مدیریت
-    if user_id in waiting_for_admin:
-        if text == "لغو":
-            waiting_for_admin.remove(user_id)
-            await message.reply_text("لغو شد.", reply_markup=main_keyboard())
-
-            return
-
-        sent = await message.copy(chat_id=ADMIN_ID)
-
-
-        user_map[sent.message_id] = user_id
-        waiting_for_admin.remove(user_id)
-
-        await message.reply_text(
-            "پیام شما برای من ارسال شد.",
-            reply_markup=main_keyboard()
-        )
-
-        return
+    
 
     print(f"user : {message.chat.id} , chat type : {chat_type} , text : {text}")
 
@@ -186,7 +193,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("contact", contact_admin_command))
 
     app.add_handler(MessageHandler(filters.REPLY, admin_reply))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(~filters.COMMAND, handle_message))
+
 
     app.add_error_handler(error)
 
