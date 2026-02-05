@@ -194,11 +194,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in banned_users:
         return
     
-    # اگر ادمین در حال چت با کاربر است (بدون نیاز به ریپلای)
-    if user_id == ADMIN_ID and ADMIN_ID in active_admin_chats:
-        target_user = active_admin_chats[ADMIN_ID]
-        await context.bot.send_message(target_user, text)
-        return
 
     
     global broadcast_mode
@@ -224,20 +219,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if text == "❌ خروج از چت":
             await end_chat(update, context)
             return
+        
+        if text == "🛠 پنل مدیریت" and user_id == ADMIN_ID:
+            await message.reply_text(
+                "پنل مدیریت:",
+                reply_markup=ReplyKeyboardMarkup(
+                 [
+                    ["📢 پیام همگانی"],
+                    ["📋 آمار ربات", "🚫 لیست بن"],
+                    ["🔙 بازگشت به منوی اصلی"],
+                 ],
+                 resize_keyboard=True
+                )
+            )
+            return
 
-    if text == "🛠 پنل مدیریت" and user_id == ADMIN_ID:
-        await message.reply_text(
-              "پنل مدیریت:",
-              reply_markup=ReplyKeyboardMarkup(
-                  [
-                        ["📢 پیام همگانی"],
-                        ["📋 آمار ربات", "🚫 لیست بن"],
-                        ["🔙 بازگشت به منوی اصلی"],
-                  ],
-                  resize_keyboard=True
-        )
-    )
-    return
+
+
 
 
 
@@ -294,7 +292,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         active_admin_chats[ADMIN_ID] = user_id
         return
 
-
+    # اگر ادمین در حال چت با کاربر است (بدون نیاز به ریپلای)
+    if user_id == ADMIN_ID and ADMIN_ID in active_admin_chats:
+        target_user = active_admin_chats[ADMIN_ID]
+        await context.bot.send_message(target_user, text)
+        return
 
     
 
