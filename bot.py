@@ -62,8 +62,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_keyboard(update.effective_user.id)
 
     )
-    if update.effective_user.id == ADMIN_ID:
-        await update.message.reply_text("پنل مدیریت:", reply_markup=admin_keyboard())
+    
 
 
 
