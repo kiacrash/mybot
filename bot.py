@@ -3,7 +3,7 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 ADMIN_ID = 553903664
-waiting_for_admin = set()
+
 user_map = {}
 
 all_users = set()
@@ -20,15 +20,18 @@ TOKEN = os.getenv("TOKEN")
 
 BOT_USERNAME = '@crashwrldbot'
 
-def main_keyboard():
-    return ReplyKeyboardMarkup(
-        [
-            ["🏠 شروع"],
-            ["❓ راهنما", "⚙️ دستور سفارشی"],
-            ["📩 ارتباط با من"]
-        ],
-        resize_keyboard=True
-    )
+def main_keyboard(user_id=None):
+    buttons = [
+        ["🏠 شروع"],
+        ["❓ راهنما", "⚙️ دستور سفارشی"],
+        ["📩 ارتباط با من"]
+    ]
+
+    if user_id == ADMIN_ID:
+        buttons.append(["🛠 پنل مدیریت"])
+
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
 
 def admin_keyboard():
     return ReplyKeyboardMarkup(
@@ -51,19 +54,14 @@ def cancel_keyboard():
 
 
 
-async def contact_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    waiting_for_admin.add(update.effective_user.id)
-    await update.message.reply_text(
-        "پیام خودتون را بنویسید تا برای من ارسال شود:",
-        reply_markup=cancel_keyboard()
-    )
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     await update.message.reply_text(
         f"سلام {user.first_name or ''} به کرش ورلد خوش آمدید",
-        reply_markup=main_keyboard()
+        reply_markup=main_keyboard(update.effective_user.id)
+
     )
     if update.effective_user.id == ADMIN_ID:
         await update.message.reply_text("پنل مدیریت:", reply_markup=admin_keyboard())
@@ -117,9 +115,18 @@ async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
 
+    if update.message.reply_to_message:
+        msg_id = update.message.reply_to_message.message_id
+        if msg_id in user_map:
+            user_id = user_map[msg_id]
+            active_admin_chats[ADMIN_ID] = user_id
+            active_admin_chats[user_id] = True
+            save_state()
+
     if ADMIN_ID in active_admin_chats:
         user_id = active_admin_chats[ADMIN_ID]
         await context.bot.send_message(user_id, update.message.text)
+
 
 
 
@@ -173,10 +180,16 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def end_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id == ADMIN_ID:
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if ADMIN_ID in active_admin_chats:
+        user_id = active_admin_chats[ADMIN_ID]
+        active_admin_chats.pop(user_id, None)
         active_admin_chats.pop(ADMIN_ID, None)
-        save_state()
-        await update.message.reply_text("از مکالمه خارج شدی.")
+        await context.bot.send_message(user_id, "ادمین از چت خارج شد.")
+        await update.message.reply_text("از چت خارج شدی.")
+
 
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -223,6 +236,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await end_chat(update, context)
             return
 
+    if text == "🛠 پنل مدیریت" and user_id == ADMIN_ID:
+         await message.reply_text(
+             "پنل مدیریت:",
+             reply_markup=ReplyKeyboardMarkup(
+                [
+                      ["📢 پیام همگانی"],
+                   ["📋 آمار ربات", "🚫 لیست بن"],
+                   ["❌ خروج از چت"]
+                ],
+                resize_keyboard=True
+            )
+        )
+         return
+
+
+    if text == "📋 آمار ربات" and user_id == ADMIN_ID:
+        await stats(update, context)
+        return
+
+    if text == "🚫 لیست بن" and user_id == ADMIN_ID:
+        await banlist(update, context)
+        return
+
+
 
     # دکمه ها
     if text == "🏠 شروع":
@@ -238,42 +275,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
      return
 
 
-    # اگر کاربر دکمه ارتباط با مدیریت را زد
     if text == "📩 ارتباط با من":
-     waiting_for_admin.add(user_id)
-     await message.reply_text(
-          "پیام خودتون را بنویسید تا برای من ارسال شود:",
-           reply_markup=cancel_keyboard()
-     )
-     return
-    
-    # حالت ارتباط با مدیریت
-    if user_id in waiting_for_admin:
-        if text == "لغو":
-            waiting_for_admin.remove(user_id)
-            await message.reply_text("لغو شد.", reply_markup=main_keyboard())
+        await message.reply_text(
+          "پیام‌هات رو بفرست. هرچی بفرستی مستقیم برای من میاد.\nبرای خروج «لغو» بزن.",
+         reply_markup=cancel_keyboard()
+        )
+        active_admin_chats[user_id] = True
+        return
 
+    
+    # چت ادامه‌دار کاربر با ادمین
+    if user_id in active_admin_chats and user_id != ADMIN_ID:
+        if text == "لغو":
+            active_admin_chats.pop(user_id, None)
+            await message.reply_text("از چت خارج شدی.", reply_markup=main_keyboard(user_id))
             return
 
         header = f"پیام جدید از کاربر:\n\nID: {user_id}"
         await context.bot.send_message(ADMIN_ID, header)
 
-
         sent = await message.copy(chat_id=ADMIN_ID)
-
-        active_admin_chats[ADMIN_ID] = user_id
-        save_state()
-
-
         user_map[sent.message_id] = user_id
-        waiting_for_admin.remove(user_id)
-
-        await message.reply_text(
-            "پیام شما برای من ارسال شد.",
-            reply_markup=main_keyboard()
-        )
-
         return
+
 
 
     
@@ -316,7 +340,7 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("broadcast", broadcast_command))
 
-    app.add_handler(CommandHandler("contact", contact_admin_command))
+
 
     app.add_handler(MessageHandler(filters.ALL & filters.User(ADMIN_ID), admin_reply))
 
