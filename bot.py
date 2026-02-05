@@ -13,6 +13,8 @@ broadcast_mode = False
 banned_users = set()
 
 active_admin_chats = {}
+waiting_for_admin = set()
+
 import json
 
 import os
@@ -189,19 +191,6 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    if update.message.reply_to_message:
-        msg_id = update.message.reply_to_message.message_id
-        if msg_id in user_map:
-            user_id = user_map[msg_id]
-
-            # اینجا ادمین تصمیم می‌گیرد با کی چت کند
-            active_admin_chats[ADMIN_ID] = user_id
-
-            await context.bot.send_message(user_id, update.message.text)
 
 
 
@@ -218,12 +207,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user_id in banned_users:
         return
-    
-    # اگر ادمین در حال چت با کاربر است (بدون نیاز به ریپلای)
-    if user_id == ADMIN_ID and ADMIN_ID in active_admin_chats:
-        target_user = active_admin_chats[ADMIN_ID]
-        await context.bot.send_message(target_user, text)
+
+    # کاربر در حال پیام دادن به ادمین است
+    if user_id in waiting_for_admin:
+
+        if text == "لغو":
+            waiting_for_admin.remove(user_id)
+            await message.reply_text("از چت خارج شدی.", reply_markup=main_keyboard(user_id))
+            return
+
+        header = f"پیام جدید از کاربر:\n\nID: {user_id}"
+        await context.bot.send_message(ADMIN_ID, header)
+
+        sent = await message.copy(chat_id=ADMIN_ID)
+        user_map[sent.message_id] = user_id
         return
+
+    
+
     
     global broadcast_mode
 
@@ -298,11 +299,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     if text == "📩 ارتباط با من":
+        waiting_for_admin.add(user_id)
         await message.reply_text(
             "پیام‌هات رو بفرست. هرچی بفرستی مستقیم برای من میاد.\nبرای خروج «لغو» بزن.",
             reply_markup=cancel_keyboard()
         )
         return
+
 
 
     
@@ -340,7 +343,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("unban", unban))
     app.add_handler(CommandHandler("stats", stats))
 
-    app.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), admin_reply))
+
 
     app.add_handler(CommandHandler("end", end_chat))
 
