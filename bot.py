@@ -14,7 +14,6 @@ banned_users = set()
 active_admin_chats = {}
 import json
 
-
 import os
 TOKEN = os.getenv("TOKEN")
 
@@ -344,7 +343,6 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), admin_reply))
 
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
-
 
     app.add_error_handler(error)
 
