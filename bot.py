@@ -109,22 +109,6 @@ def handle_response(text: str):
     return "شرمنده متوجه نشدم"
 
 
-async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    if update.message.reply_to_message:
-        msg_id = update.message.reply_to_message.message_id
-        if msg_id in user_map:
-            user_id = user_map[msg_id]
-            active_admin_chats[ADMIN_ID] = user_id
-            active_admin_chats[user_id] = True
-            save_state()
-
-    if ADMIN_ID in active_admin_chats:
-        user_id = active_admin_chats[ADMIN_ID]
-        await context.bot.send_message(user_id, update.message.text)
-
 
 
 
@@ -210,6 +194,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in banned_users:
         return
     
+    # اگر ادمین در حال چت با کاربر است (بدون نیاز به ریپلای)
+    if user_id == ADMIN_ID and ADMIN_ID in active_admin_chats:
+        target_user = active_admin_chats[ADMIN_ID]
+        await context.bot.send_message(target_user, text)
+        return
+
+    
     global broadcast_mode
 
     if broadcast_mode and user_id == ADMIN_ID:
@@ -235,18 +226,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     if text == "🛠 پنل مدیریت" and user_id == ADMIN_ID:
-         await message.reply_text(
-             "پنل مدیریت:",
-             reply_markup=ReplyKeyboardMarkup(
-                [
-                      ["📢 پیام همگانی"],
-                   ["📋 آمار ربات", "🚫 لیست بن"],
-                   ["❌ خروج از چت"]
-                ],
-                resize_keyboard=True
-            )
+        await message.reply_text(
+              "پنل مدیریت:",
+              reply_markup=ReplyKeyboardMarkup(
+                  [
+                        ["📢 پیام همگانی"],
+                        ["📋 آمار ربات", "🚫 لیست بن"],
+                        ["🔙 بازگشت به منوی اصلی"],
+                  ],
+                  resize_keyboard=True
         )
-         return
+    )
+    return
+
 
 
     if text == "📋 آمار ربات" and user_id == ADMIN_ID:
@@ -271,6 +263,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "⚙️ دستور سفارشی":
      await custom_command(update, context)
      return
+    
+    if text == "🔙 بازگشت به منوی اصلی" and user_id == ADMIN_ID:
+       await message.reply_text("بازگشت به منو", reply_markup=main_keyboard(user_id))
+       return
+
 
 
     if text == "📩 ارتباط با من":
@@ -294,6 +291,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         sent = await message.copy(chat_id=ADMIN_ID)
         user_map[sent.message_id] = user_id
+        active_admin_chats[ADMIN_ID] = user_id
         return
 
 
@@ -338,8 +336,6 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("broadcast", broadcast_command))
 
-
-    app.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), admin_reply))
 
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
