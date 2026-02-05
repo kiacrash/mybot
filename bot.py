@@ -190,6 +190,16 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+async def admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    if update.message.reply_to_message:
+        msg_id = update.message.reply_to_message.message_id
+
+        if msg_id in user_map:
+            user_id = user_map[msg_id]
+            await context.bot.send_message(user_id, update.message.text)
 
 
 
@@ -349,6 +359,7 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("broadcast", broadcast_command))
 
+    app.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), admin_reply))
 
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
