@@ -341,8 +341,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("broadcast", broadcast_command))
 
 
-
-    app.add_handler(MessageHandler(filters.ALL & filters.User(ADMIN_ID), admin_reply))
+    app.add_handler(MessageHandler(filters.REPLY & filters.User(ADMIN_ID), admin_reply))
 
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
